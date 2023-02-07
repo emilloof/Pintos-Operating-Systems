@@ -1,0 +1,10 @@
+1.s
+
+We are writing data to a file. This means that we are using sys_write
+2.
+The second parameter is a file descriptor.
+In this case, the file descriptor is used while we use sys_write. It is used as a refrence to the file we are writing to.
+
+3.
+Write p f->esp+8 to get the address to parameter 3
+Then write x/s (char**) *[the address above]

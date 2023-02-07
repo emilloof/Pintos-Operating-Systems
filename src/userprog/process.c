@@ -494,7 +494,11 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
+<<<<<<< HEAD
         *esp = PHYS_BASE -12;
+=======
+        *esp = PHYS_BASE - 12;
+>>>>>>> fa75bacf3e0e3f5837202774482bea62fa142bcc
       else
         palloc_free_page (kpage);
     }
