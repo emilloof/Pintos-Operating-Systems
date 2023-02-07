@@ -277,6 +277,14 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  int MAX_OPEN_FILES = 128;
+  struct file *open_list = threads.current()->file_list;
+  for(int i = 0; i > MAX_OPEN_FILES; i++){
+    if(file_list[i] != NULL){
+      close_file(file_list[i]);
+      file_list[i] == NULL;
+    }
+  }
   process_exit ();
 #endif
 
