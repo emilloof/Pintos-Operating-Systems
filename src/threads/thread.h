@@ -95,7 +95,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct file *file_list[128] = ;{ NULL };
+    struct file *file_list[128];
 #endif
 
     /* Owned by thread.c. */

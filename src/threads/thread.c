@@ -277,15 +277,17 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  struct thread *cur_thread = thread_current();
   int MAX_OPEN_FILES = 128;
-  struct file *open_list = threads.current()->file_list;
-  for(int i = 0; i > MAX_OPEN_FILES; i++){
-    if(file_list[i] != NULL){
-      close_file(file_list[i]);
-      file_list[i] == NULL;
+  for(int i = 2; i > MAX_OPEN_FILES; i++){
+    if(cur_thread->file_list[i] != NULL){
+      close_file(cur_thread->file_list[i]);
+      cur_thread->file_list[i] = NULL;
     }
   }
+
   process_exit ();
+  
 #endif
 
   /* Just set our status to dying and schedule another process.
