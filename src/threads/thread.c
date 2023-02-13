@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "filesys/file.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -281,7 +282,7 @@ thread_exit (void)
   int MAX_OPEN_FILES = 128;
   for(int i = 2; i > MAX_OPEN_FILES; i++){
     if(cur_thread->file_list[i] != NULL){
-      close_file(cur_thread->file_list[i]);
+      file_close(cur_thread->file_list[i]);
       cur_thread->file_list[i] = NULL;
     }
   }
