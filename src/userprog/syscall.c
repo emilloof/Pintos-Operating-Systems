@@ -7,6 +7,11 @@
 #include "filesys/file.h"
 #include "devices/input.h"
 
+/*
+export PATH="${HOME}/Desktop/pintos/src/utils/:${PATH}/"
+pintos --qemu -- run lab1test2
+*/
+
 
 static void syscall_handler (struct intr_frame *);
 static int MAX_OPEN_FILES = 130;
@@ -39,8 +44,8 @@ open (const char *file)
   int fd; 
   struct thread  *current_thread = thread_current();
   for(int i = 2; i < MAX_OPEN_FILES; i++){
-    if(current_thread->file_list[i] == NULL){
-      current_thread->file_list[i] = i;
+   // if(current_thread->file_list[i] == NULL){
+     // current_thread->file_list[i] = i;
       struct file* opended = filesys_open(file);
       if(opended != NULL){
         current_thread->file_list[i] = opended;
@@ -48,7 +53,7 @@ open (const char *file)
       }
       return -1;      
     }
-  }
+  //}
   return -1;
 }
 
@@ -87,17 +92,10 @@ write (int fd, const void *buffer, unsigned size)
 { 
   
   if(fd == 1){
-    //putbuf(buffer, size);
-    //return (int) size;
+    putbuf((char *)buffer, size);
+    return (int) size;
 
-    size_t size_left = (size_t)size;
-    if ((int)size_left == 0) {
-      return (int)size;
-    }
-    else if ((int)size_left < 200){
-        putbuf(buffer, size_left);
-        size_left = 0;
-    }
+
   }
   else if(2 <= fd && fd < MAX_OPEN_FILES){
     struct thread *current_thread = thread_current();
@@ -109,44 +107,6 @@ write (int fd, const void *buffer, unsigned size)
   else{
     return -1;
   } 
-  /*
-    size_t i;
-  if(fd==1){
-    size_t size_left = (size_t)size;
-    for (i = 0; i < (size_t) size; i++) {
-      if ((int)size_left == 0) {
-        return (int)size;
-      }
-      else if ((int)size_left < 200){
-        putbuf(buffer, size_left);
-        size_left = 0;
-      }
-      else{
-        // at  least  aslong as size is not bigger than a few hundred bytes.
-        // (It is reasonable to breakup larger buffers.) CHOOSE 200
-      //  putbuf((char*)buffer, 200);
-        putbuf(buffer, 200);
-        size_left -= 200;
-      }
-    }
-  }
-  else if (2 <= fd && fd < 130) {
-    //find current thread.
-    struct thread *current_thread = thread_current();
-    //find file from threads file-list. 0&1 taken accord.to assign.
-    struct file *file = current_thread->file_list[fd];
-
-    int written_bytes = file_write (file, buffer, (off_t)size);
-
-    if (written_bytes != 0 ) {
-      return written_bytes;
-    }
-    else {
-      return -1;
-    }
-  }
-  return -1;
-*/
 }
 
 void 
@@ -200,11 +160,11 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_WRITE:
     {
-      int fd = *((int*)(sp));
+      int fd = *(int*)sp;
       sp += 4;
-      void *buffer = *((void**)sp);
+      void *buffer = *(void**)sp;
       sp += 4;
-      unsigned size = *((unsigned*)(sp));
+      unsigned size = *(unsigned*)sp;
       f->eax = write(fd, buffer, size);
       break;
     }
