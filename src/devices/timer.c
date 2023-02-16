@@ -7,7 +7,8 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-  
+#include "lib/kernel/list.h"
+
 /* See [8254] for hardware details of the 8254 timer chip. */
 
 #if TIMER_FREQ < 19
@@ -28,6 +29,9 @@ static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
+
+struct list* threads;  
+
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -92,7 +96,36 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+bool
+less_sleep_time(struct thread *t1, struct thread *t2){
+  
+  return t1->sleep_time < t2->sleep_time;
+}
+
 /* Suspends execution for approximately TICKS timer ticks. */
+void
+timer_sleep (int64_t ticks){
+
+  int64_t start = timer_ticks ();
+  ASSERT (intr_get_level() == INTR_ON);
+  struct thread *sleep_thread = thread_current();
+  sleep_thread->sleep_time = start + ticks;
+
+  
+
+
+
+  enum intr_level old_level = intr_disable (); 
+  list_insert_ordered(&threads, &sleep_thread->elem, less_sleep_time, sleep_thread->sleep_time);
+  
+  thread_block();
+  intr_set_level(old_level);
+}
+
+
+
+
+/*
 void
 timer_sleep (int64_t ticks) 
 {
@@ -102,6 +135,7 @@ timer_sleep (int64_t ticks)
   while (timer_elapsed (start) < ticks) 
     thread_yield ();
 }
+*/
 
 /* Suspends execution for approximately MS milliseconds. */
 void
