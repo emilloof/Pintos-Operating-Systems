@@ -2,7 +2,13 @@
     "files.associations": {
         "interrupt.h": "c",
         "syscall.h": "c",
-        "syscall-nr.h": "c"
+        "syscall-nr.h": "c",
+        "thread": "c",
+        "stdbool.h": "c",
+        "inttypes.h": "c",
+        "debug.h": "c",
+        "list.h": "c"
     },
-    "C_Cpp.dimInactiveRegions": false
+    "C_Cpp.dimInactiveRegions": false,
+    "C_Cpp.errorSquiggles": "disabled"
 }
