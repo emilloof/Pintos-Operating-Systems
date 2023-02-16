@@ -89,17 +89,15 @@ timer_elapsed (int64_t then)
    return timer_ticks () - then;
 }
 
-static bool
-compare(const struct list_elem* e1, const struct list_elem* e2, void *aux){
+bool
+less_sleep_time(const struct list_elem* e1, const struct list_elem* e2, void *aux){
   struct thread *t1 = list_entry(e1, struct thread, elem);
   struct thread *t2 = list_entry(e2, struct thread, elem);
-  return t1->sleep_time > t2->sleep_time;
+  return t1->sleep_time < t2->sleep_time;
 }
 
 
 /* Suspends execution for approximately TICKS timer ticks. */
-
-/*
 void
 timer_sleep (int64_t ticks){
 
@@ -107,70 +105,19 @@ timer_sleep (int64_t ticks){
     return;
   }
 
-  //int64_t start = timer_ticks ();
-
-  int64_t sleep = timer_ticks () + ticks;
+  int64_t tick_time = timer_ticks ();
 
   ASSERT (intr_get_level() == INTR_ON);
+  struct thread *current_thread = thread_current();
+  current_thread->sleep_time  = tick_time + ticks;
   enum intr_level old_level = intr_disable (); 
-  struct thread *sleep_thread = thread_current();
-//  sleep_thread->sleep_time = start + ticks;
-  
-  sleep_thread->sleep_time = sleep;
 
 
-  list_insert_ordered(&threads, &sleep_thread->elem, less_sleep_time, NULL);
+  list_insert_ordered(&threads_asleep, &current_thread->elem, less_sleep_time, NULL);
   
   thread_block();
   intr_set_level(old_level);
 }
-*/
-
-
-void
-timer_sleep (int64_t ticks) 
-{
-  //Check that ticks are valid
-  if(ticks <= 0) {
-    return;
-  } 
-
-  //Get the ticks for the wakeup time
-  int64_t wake_up_ticks = timer_ticks() + ticks;
-  
-  //Why is this needed?
-  ASSERT (intr_get_level () == INTR_ON);
-  
-  //Why can't we use locks? Won't threads interfere with eachother in this function?
-  //Is this because we can't switch threads due to intr. being disabled?
-  //"Lock"
-  enum intr_level old = intr_disable();
-  struct thread *curr = thread_current();
-  
-  curr->sleep_time = wake_up_ticks;
-
-  //Insert the thread into the list in order. See pintos docs.
-  list_insert_ordered(&threads_asleep, &curr->elem, compare, NULL);
-
-  thread_block();
-
-  //"Unlock"
-  intr_set_level(old);
-  
-}
-
-
-/*
-void
-timer_sleep (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-}
-*/
 
 /* Suspends execution for approximately MS milliseconds. */
 void
@@ -204,38 +151,26 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-    //Disable interrupt
-  enum intr_level old = intr_disable();
-
+  enum intr_level old_level = intr_disable();
+ 
   ticks++;
   thread_tick ();
 
-
-  struct list_elem *e;
+  struct list_elem *element;
 
   while(!list_empty(&threads_asleep)) {
-      //Get the front element.
-      e = list_front(&threads_asleep);
-      //Get the thread from the list.
-      struct thread *sleep_thread = list_entry (e, struct thread, elem);
-      
-      // Should we remove it from the list or wait until next interrupt?
-      if(sleep_thread->sleep_time > timer_ticks()) {
-        break;
-      }
-
-      //Pop the first element.
+    element = list_front(&threads_asleep);
+    struct thread *sleep_thread = list_entry (element, struct thread, elem); 
+    if(sleep_thread->sleep_time <= timer_ticks()) {
       list_pop_front(&threads_asleep);
+       thread_unblock(sleep_thread);
 
-      thread_unblock(sleep_thread);
-      
-  }
-
-  //Set interrupt level to enable.
-  intr_set_level(old);
-
-  //ticks++;
-  //thread_tick ();
+      }
+    else{
+      break;
+    }      
+  } 
+  intr_set_level(old_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

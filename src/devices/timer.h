@@ -14,7 +14,6 @@
 #include "threads/thread.h"
 #include "lib/kernel/list.h"
 #include <stdbool.h>
-#include <stdlib.h>
 
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100

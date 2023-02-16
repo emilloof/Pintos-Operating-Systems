@@ -22,7 +22,7 @@ syscall_init (void)
 }
 
 
-
+thread
 void
 halt (void)
 {
