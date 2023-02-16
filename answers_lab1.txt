@@ -1,0 +1,72 @@
+Prep questions 0
+(a) What is the idea behind system calls?
+    To be the interface between an OS and a process
+
+(b) Why cannot the code of the system calls be available simply as a library
+to user processes?
+    Because system calls are made for a specific hardware.
+    Exposing system call code as a library could mean a security risk
+    since system call code includes sensitive information
+
+
+Prep questions 1
+(a) How it is possible to distinguish in syscall handler which system call it is?
+    By giving each syscall an unique syscall number
+
+b) Where are the arguments of a system call stored (if there are any) and how
+can you access them?
+    The arguments are stored on a stack and access through the stack pointer
+
+
+Preparatory question 2:
+(a) Where are the user-mode stack and the kernel-mode stack of a process lo-
+cated?
+    User-mode stack is located in range from virtuel address 0 up to PHYS_BASE
+    Kernel-mode stack is located from PHYS_BASE up to 4 GB
+    PHYS_BASE is defined in "threadS/vaddr.h". 
+
+
+(b) How can you address the user-mode stack in the kernel code, particularly,
+in an interrupt handler?
+    Verify the validity of a user-provided pointer, then deference it. If you do this
+    you'll want to look at the functions in "userprog/pagedir.c" and "threads/vaddr.h"
+    Or check only that a user pointer points below PHYS_BASE, then deference it
+    An invalid user pointer will cause a "page fault" that you can handle by 
+    modifying the code for page_fault() in "userprog/exception.cc". (This is normally
+    faster.)
+
+(c) What is the reason of having two stacks instead of one?
+    It improves security and the stability of the code by preventing inteferance
+    of code that doesnt belong
+
+
+Preparatory question 3:
+When a user program executes a system call like open(), an address to a string
+containing the file name is provided as an argument.
+
+(a) In which memory is this string stored, and (b) how can we access it in the
+kernel code?
+    The string is stored in user virtual memory, the address of the
+    string is passed as an argument to the syscall.    
+                                                         
+
+(c) Specify the situations when accessing the data via that pointer can lead to
+problems.
+    it will be a problem if the address points to a that has been freed. 
+    This will result in an error in the kernel.
+
+(d) What can be done about it?
+    Make the kernel code check if the memory it points to is still allocated.
+
+
+Preparatory question 4:
+Why can a user program not simply call functions in filesys directly instead of
+performing system calls?
+
+
+
+Preparatory question 5:
+When a file is opened, a file id is returned to the user program, which is used to
+refer to a specific opened file when doing file operations. Explain how to gen-
+erate file identifiers and map them to struct file pointers that are created
+in the kernel.

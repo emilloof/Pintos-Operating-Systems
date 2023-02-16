@@ -6,6 +6,8 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/input.h"
+#include "threads/init.h"
+#include "userprog/process.h"
 
 /*
 export PATH="${HOME}/Desktop/pintos/src/utils/:${PATH}/"
@@ -35,20 +37,19 @@ halt (void)
 bool
 create (const char *file, unsigned initial_size)
 {
-  return filesys_create(file, initial_size);
+  return  filesys_create(file, initial_size);
 }
 
 int 
 open (const char *file)
 {
-  int fd; 
   struct thread  *current_thread = thread_current();
   for(int i = 2; i < MAX_OPEN_FILES; i++){
-   // if(current_thread->file_list[i] == NULL){
-     // current_thread->file_list[i] = i;
+    if(current_thread->file_list[i] == NULL){
       struct file* opended = filesys_open(file);
       if(opended != NULL){
         current_thread->file_list[i] = opended;
+        printf("%d\n", i);
         return i;
       }
       return -1;      
@@ -61,30 +62,32 @@ void
 close (int fd)
 {
   struct thread *current_thread = thread_current();
-  file_close(current_thread->file_list[fd]);
-  current_thread->file_list[fd] == NULL;
+  if(current_thread->file_list[fd] != NULL){
+    file_close(current_thread->file_list[fd]);
+    printf("%d\n",fd);
+    current_thread->file_list[fd] = NULL;
+  }
 }
 
 int
 read (int fd, void *buffer, unsigned size)
 {
+  struct thread *current_thread = thread_current();
+
   if(fd == 0){
     char *bufferCopy = (char *) buffer;
-    for(int i = 0; i < size; i++){
+    for(unsigned i = 0; i < size; i++){
       uint8_t key = input_getc();
       bufferCopy[i] = key;
     }
     return size;
   }
-  else if(2 <= fd && fd <= MAX_OPEN_FILES){
-    struct thread *current_thread = thread_current();
+  else if(2 <= fd && fd < MAX_OPEN_FILES && current_thread->file_list[fd] != NULL){
     struct file *opened_file = current_thread->file_list[fd];
+    printf("%s\n", "hej");
     return file_read(opened_file, buffer, size);
   }
-  else{
-    return -1;
-  }
-
+  return -1;
 }
 
 int 
@@ -92,12 +95,18 @@ write (int fd, const void *buffer, unsigned size)
 { 
   
   if(fd == 1){
+<<<<<<< HEAD
     putbuf((char *)buffer, size);
     return (int) size;
 
 
+=======
+    putbuf(buffer, size);
+    return (int) size;
+>>>>>>> bccfa74c5b9ee680f78063f3682f495f28353cf2
   }
   else if(2 <= fd && fd < MAX_OPEN_FILES){
+
     struct thread *current_thread = thread_current();
     struct file *opened_file = current_thread->file_list[fd];
     if(opened_file != NULL){
@@ -107,6 +116,10 @@ write (int fd, const void *buffer, unsigned size)
   else{
     return -1;
   } 
+<<<<<<< HEAD
+=======
+  return -1;
+>>>>>>> bccfa74c5b9ee680f78063f3682f495f28353cf2
 }
 
 void 
@@ -118,7 +131,7 @@ exit (int status)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  //printf ("system call!\n");
+  printf ("system call!\n");
  
   void* sp = f->esp;
   int id = *(int*)(sp);
@@ -152,9 +165,11 @@ syscall_handler (struct intr_frame *f UNUSED)
     } 
     case SYS_READ:
     {
-      int fd = sp;
-      void *buffer = *(void**)sp+4;
-      unsigned size = (unsigned)sp+8;
+      int fd = *(int*)sp;
+      sp += 4;
+      void *buffer = *(void**)sp;
+      sp +=4;
+      unsigned size = *(unsigned*)sp;
       f->eax = read(fd, buffer, size);
       break;
     }
@@ -170,8 +185,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_EXIT:
     {
-      exit(id);
+      int fd = *((int*)(sp));
+      exit(fd);
       break;
     }
   }
 }
+
