@@ -54,7 +54,7 @@ open (const char *file)
       }
       return -1;      
     }
-  //}
+  }
   return -1;
 }
 
@@ -95,15 +95,8 @@ write (int fd, const void *buffer, unsigned size)
 { 
   
   if(fd == 1){
-<<<<<<< HEAD
-    putbuf((char *)buffer, size);
-    return (int) size;
-
-
-=======
     putbuf(buffer, size);
     return (int) size;
->>>>>>> bccfa74c5b9ee680f78063f3682f495f28353cf2
   }
   else if(2 <= fd && fd < MAX_OPEN_FILES){
 
@@ -116,10 +109,7 @@ write (int fd, const void *buffer, unsigned size)
   else{
     return -1;
   } 
-<<<<<<< HEAD
-=======
   return -1;
->>>>>>> bccfa74c5b9ee680f78063f3682f495f28353cf2
 }
 
 void 

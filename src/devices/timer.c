@@ -1,13 +1,4 @@
 #include "devices/timer.h"
-#include <debug.h>
-#include <inttypes.h>
-#include <round.h>
-#include <stdio.h>
-#include "threads/interrupt.h"
-#include "threads/io.h"
-#include "threads/synch.h"
-#include "threads/thread.h"
-#include "lib/kernel/list.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -20,6 +11,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+static struct list sleeping_threads; 
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -29,9 +21,6 @@ static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
-
-struct list* threads;  
-
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -48,6 +37,8 @@ timer_init (void)
   outb (0x40, count >> 8);
 
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+  list_init(&sleeping_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -96,46 +87,66 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-bool
-less_sleep_time(struct thread *t1, struct thread *t2){
-  
-  return t1->sleep_time < t2->sleep_time;
+//Used when placing threads in order. (aux is unused)
+static bool compare(const struct list_elem* new, const struct list_elem* existing, void* aux) {
+  struct thread* old = list_entry(existing, struct thread, elem);
+  struct thread* insert = list_entry(new, struct thread, elem);
+
+  return old->sleep_time > insert->sleep_time;
 }
 
 /* Suspends execution for approximately TICKS timer ticks. */
 void
-timer_sleep (int64_t ticks){
+timer_sleep (int64_t ticks) 
+{/*
+  if(ticks <= 0){
+    return;
+  }
 
-  int64_t start = timer_ticks ();
+
+  int64_t tick_timer = timer_ticks () + ticks;
+
   ASSERT (intr_get_level() == INTR_ON);
-  struct thread *sleep_thread = thread_current();
-  sleep_thread->sleep_time = start + ticks;
-
-  
-
-
 
   enum intr_level old_level = intr_disable (); 
-  list_insert_ordered(&threads, &sleep_thread->elem, less_sleep_time, sleep_thread->sleep_time);
+  struct thread *current_thread = thread_current();
+
+  
+  current_thread->sleep_time = tick_timer;
+
+
+  list_insert_ordered(&sleeping_threads, &current_thread->elem, compare, NULL);
   
   thread_block();
   intr_set_level(old_level);
-}
+  */
+  //Check that ticks are valid
+  if(ticks <= 0) {
+    return;
+  } 
 
-
-
-
-/*
-void
-timer_sleep (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
-
+  //Get the ticks for the wakeup time
+  int64_t wake_up_ticks = timer_ticks() + ticks;
+  
+  //Why is this needed?
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  
+  //Why can't we use locks? Won't threads interfere with eachother in this function?
+  //Is this because we can't switch threads due to intr. being disabled?
+  //"Lock"
+  enum intr_level old = intr_disable();
+  struct thread *curr = thread_current();
+  
+  curr->sleep_time = wake_up_ticks;
+
+  //Insert the thread into the list in order. See pintos docs.
+  list_insert_ordered(&sleeping_threads, &curr->elem, compare, NULL);
+
+  thread_block();
+
+  //"Unlock"
+  intr_set_level(old);
 }
-*/
 
 /* Suspends execution for approximately MS milliseconds. */
 void
@@ -164,13 +175,38 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  //Disable interrupt
+  enum intr_level old = intr_disable();
+
   ticks++;
   thread_tick ();
+
+  struct list_elem *e;
+
+  while(!list_empty(&sleeping_threads)) {
+      //Get the front element.
+      e = list_front(&sleeping_threads);
+      //Get the thread from the list.
+      struct thread *sleep_thread = list_entry (e, struct thread, elem);
+      
+      // Should we remove it from the list or wait until next interrupt?
+      if(sleep_thread->sleep_time > timer_ticks()) {
+        break;
+      }
+
+      //Pop the first element.
+      list_pop_front(&sleeping_threads);
+
+      thread_unblock(sleep_thread);
+  }
+
+  //Set interrupt level to enable.
+  intr_set_level(old);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
