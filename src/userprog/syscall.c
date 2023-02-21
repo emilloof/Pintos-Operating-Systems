@@ -22,7 +22,6 @@ syscall_init (void)
 }
 
 
-thread
 void
 halt (void)
 {
@@ -110,6 +109,12 @@ exit (int status)
   thread_exit();  
 }
 
+tid_t 
+exec (const char *cmd_line)
+{
+  return process_execute(cmd_line);
+}
+
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
@@ -168,6 +173,12 @@ syscall_handler (struct intr_frame *f UNUSED)
     {
       int fd = *((int*)(sp));
       exit(fd);
+      break;
+    }
+    case SYS_EXEC:
+    {
+      const char *cmd_line = *(char**)sp;
+      f->eax = exec(cmd_line);
       break;
     }
   }

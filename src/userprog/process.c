@@ -17,7 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#include <stdlib.h>
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -25,25 +25,62 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+
+/*
 tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
-     Otherwise there's a race between the caller and load(). */
+  // Make a copy of FILE_NAME.
+    // Otherwise there's a race between the caller and load(). 
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
+  // Create a new thread to execute FILE_NAME.
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
 }
+*/
+
+tid_t
+process_execute (const char *file_name)
+{
+  char *fn_copy;
+  tid_t tid;
+  struct lock l;
+  struct thread *child = (struct thread*) malloc(sizeof(struct thread));
+  struct parent_child *parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
+  
+  
+  fn_copy = palloc_get_page (0);
+    if (fn_copy == NULL)
+      return TID_ERROR;
+  strlcpy (fn_copy, file_name, PGSIZE);
+
+  //sema_init(&parent_child->sema, 0);
+  //sema_down(&parent_child->sema);
+  child->parent = thread_current();
+  parent_child->parent = thread_current();
+  parent_child->alive_count = 2;
+  parent_child->exit_status = 0;
+
+
+  lock_init(&l);
+  lock_acquire(&l);
+
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  if (tid == TID_ERROR)
+    palloc_free_page (fn_copy); 
+  return tid;
+}
+
+
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -53,6 +90,10 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  struct thread *child = thread_current();
+  struct *parent_child parent_child = child->parent_child;
+  struct list *child_list = child->parent->child_list;
+
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -63,8 +104,16 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success){ 
+    parent_child->exit_status = -1;
+    parent_child->alive_count = --1;
     thread_exit ();
+  }
+    //sema_up(&parent_child->sema);
+    list_push_front(&child_list, &child->elem);
+
+  
+  
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

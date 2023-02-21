@@ -112,7 +112,6 @@ timer_sleep (int64_t ticks){
   current_thread->sleep_time  = tick_time + ticks;
   enum intr_level old_level = intr_disable (); 
 
-
   list_insert_ordered(&threads_asleep, &current_thread->elem, less_sleep_time, NULL);
   
   thread_block();
@@ -163,7 +162,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     struct thread *sleep_thread = list_entry (element, struct thread, elem); 
     if(sleep_thread->sleep_time <= timer_ticks()) {
       list_pop_front(&threads_asleep);
-       thread_unblock(sleep_thread);
+       thread_unblock(sleep_thread); 
 
       }
     else{
