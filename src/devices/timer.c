@@ -100,7 +100,7 @@ less_sleep_time(const struct list_elem* e1, const struct list_elem* e2, void *au
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) 
-{/*
+{
   if(ticks <= 0){
     return;
   }
