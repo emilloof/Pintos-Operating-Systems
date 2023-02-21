@@ -91,16 +91,12 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-    int64_t sleep_time; /* List element for timer.c */
-    int64_t wake_up_ticks;
-
-    
+    int64_t sleep_time;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *file_list[130];
-
 #endif
 
     /* Owned by thread.c. */

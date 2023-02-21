@@ -27,7 +27,7 @@ syscall_init (void)
 }
 
 
-
+thread
 void
 halt (void)
 {
@@ -49,7 +49,6 @@ open (const char *file)
       struct file* opended = filesys_open(file);
       if(opended != NULL){
         current_thread->file_list[i] = opended;
-        printf("%d\n", i);
         return i;
       }
       return -1;      
@@ -64,7 +63,6 @@ close (int fd)
   struct thread *current_thread = thread_current();
   if(current_thread->file_list[fd] != NULL){
     file_close(current_thread->file_list[fd]);
-    printf("%d\n",fd);
     current_thread->file_list[fd] = NULL;
   }
 }
@@ -80,11 +78,10 @@ read (int fd, void *buffer, unsigned size)
       uint8_t key = input_getc();
       bufferCopy[i] = key;
     }
-    return size;
+    return (int)size;
   }
   else if(2 <= fd && fd < MAX_OPEN_FILES && current_thread->file_list[fd] != NULL){
     struct file *opened_file = current_thread->file_list[fd];
-    printf("%s\n", "hej");
     return file_read(opened_file, buffer, size);
   }
   return -1;
@@ -121,7 +118,6 @@ exit (int status)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
  
   void* sp = f->esp;
   int id = *(int*)(sp);
