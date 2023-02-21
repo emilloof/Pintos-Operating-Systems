@@ -53,7 +53,6 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-  struct lock l;
   struct thread *child = (struct thread*) malloc(sizeof(struct thread));
   struct parent_child *parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
   
@@ -63,17 +62,15 @@ process_execute (const char *file_name)
       return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  //sema_init(&parent_child->sema, 0);
-  //sema_down(&parent_child->sema);
   child->parent = thread_current();
   parent_child->parent = thread_current();
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
 
 
-  lock_init(&l);
-  lock_acquire(&l);
-
+  sema_init(&parent_child->sema, 0);
+  sema_down(&parent_child->sema);
+ 
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -91,7 +88,7 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
   struct thread *child = thread_current();
-  struct *parent_child parent_child = child->parent_child;
+  struct parent_child *parent_child = child->parent_child;
   struct list *child_list = child->parent->child_list;
 
 
@@ -106,11 +103,11 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   if (!success){ 
     parent_child->exit_status = -1;
-    parent_child->alive_count = --1;
+    parent_child->alive_count -= 1;
     thread_exit ();
   }
-    //sema_up(&parent_child->sema);
-    list_push_front(&child_list, &child->elem);
+    sema_up(&parent_child->sema);
+    list_push_front(child_list, &child->elem);
 
   
   
@@ -137,7 +134,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  if(child_tid == TID_ERROR){
+    return -1;
+  }
+  
 }
 
 /* Free the current process's resources. */

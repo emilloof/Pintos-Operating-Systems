@@ -92,9 +92,9 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     int64_t sleep_time;
-    struct thread parent;
-    struct list child_list; 
-    struct parent_child;
+    struct thread *parent;
+    struct list *child_list; 
+    struct parent_child *parent_child;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
