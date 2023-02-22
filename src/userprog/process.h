@@ -12,6 +12,7 @@ void process_activate (void);
 
 
 struct parent_child{
+  char* name;  
   int exit_status;
   int alive_count;
   struct thread *current;
@@ -19,6 +20,7 @@ struct parent_child{
   struct semaphore sema;
   struct lock lock;
   struct list_elem elem;
+  char* fn;
 };
 
 

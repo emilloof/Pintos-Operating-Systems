@@ -7,7 +7,10 @@
         "stdbool.h": "c",
         "inttypes.h": "c",
         "debug.h": "c",
-        "list.h": "c"
+        "list.h": "c",
+        "vaddr.h": "c",
+        "init.h": "c",
+        "thread.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
     "C_Cpp.errorSquiggles": "disabled"

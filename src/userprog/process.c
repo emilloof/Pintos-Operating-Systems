@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "userprog/process.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -18,6 +19,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include <stdlib.h>
+
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -34,7 +37,7 @@ process_execute (const char *file_name)
   tid_t tid;
 
   // Make a copy of FILE_NAME.
-    // Otherwise there's a race between the caller and load(). 
+    //   Otherwise there's a race between the caller and load(). 
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
@@ -53,27 +56,40 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-  struct thread *child = (struct thread*) malloc(sizeof(struct thread));
-  struct parent_child *parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
-  
+  // struct thread *child = (struct thread*) malloc(sizeof(struct thread));
+  struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
+  parent_child->name = "Kurt";
+  printf("%s",parent_child->name);
   
   fn_copy = palloc_get_page (0);
     if (fn_copy == NULL)
       return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  child->parent = thread_current();
+
+  lock_init(&(parent_child->lock));
+  lock_acquire(&(parent_child->lock));
   parent_child->parent = thread_current();
+  parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
+  lock_release(&(parent_child->lock));
+
 
 
   sema_init(&parent_child->sema, 0);
+  printf("före");
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, parent_child);
+  printf("efter");
   sema_down(&parent_child->sema);
- 
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
+  }
+  else{
+    list_push_back(thread_current()->child_list, &parent_child->elem);
+    }
+  
   return tid;
 }
 
@@ -82,33 +98,38 @@ process_execute (const char *file_name)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *parent_child_)
 {
-  char *file_name = file_name_;
+
+  struct parent_child *parent_child = parent_child_;
+  char* file_name = parent_child->fn;
   struct intr_frame if_;
   bool success;
   struct thread *child = thread_current();
-  struct parent_child *parent_child = child->parent_child;
+  child->parent = parent_child->parent;
   struct list *child_list = child->parent->child_list;
+  child->parent_child = parent_child;
 
-
+printf("%s",parent_child->name);
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
+  
   /* If load failed, quit. */
   palloc_free_page (file_name);
+  printf("hallå");
   if (!success){ 
+    printf("hej");
     parent_child->exit_status = -1;
     parent_child->alive_count -= 1;
+    sema_up(&parent_child->sema);
     thread_exit ();
   }
+    child->parent->child_list = child_list;
     sema_up(&parent_child->sema);
-    list_push_front(child_list, &child->elem);
-
   
   
 
@@ -137,15 +158,72 @@ process_wait (tid_t child_tid UNUSED)
   if(child_tid == TID_ERROR){
     return -1;
   }
-  
+  return -1;
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
+  printf("exitlol");
   struct thread *cur = thread_current ();
+
+  
+  struct list *child_list = cur->child_list;
+
+ 
+
+  struct thread *parent = cur->parent;
+
+  struct list *parent_ch_list = parent->child_list;
+  
+  struct parent_child *parent_child;
+
+
   uint32_t *pd;
+
+    if(!list_empty(child_list)){
+      printf("daab");
+
+  struct list_elem *elem = list_head(child_list);
+  while((elem = list_next(elem)) != list_end(child_list)){
+    parent_child = list_entry(elem, struct parent_child, elem);			
+    parent_child->alive_count --;
+    if(parent_child->alive_count == 0){
+      struct list_elem *prev_elem = list_prev(elem);
+      list_remove(elem);
+      elem = prev_elem;
+      free(parent_child);
+    }
+  }
+}
+  
+
+    //if(list_head(parent_ch_list != NULL)){
+    if(parent != NULL){
+    struct list_elem *el = list_head(parent_ch_list);
+  
+    while((el = list_next(el)) != list_end(parent_ch_list)){
+      parent_child = list_entry(el, struct parent_child, elem);			
+
+      if (parent_child->current == cur)
+      {
+        parent_child->alive_count --;
+        if(parent_child->alive_count == 0){
+          struct list_elem *prev_elem = list_prev(el);
+          list_remove(el);
+          el = prev_elem;
+          free(parent_child);
+      }
+  }
+}
+    }
+
+  
+  
+
+ 
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -163,6 +241,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+    
 }
 
 /* Sets up the CPU for running user code in the current
