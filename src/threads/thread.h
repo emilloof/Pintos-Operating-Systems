@@ -93,7 +93,7 @@ struct thread
     struct list_elem elem;              /* List element. */
     int64_t sleep_time;
     struct thread *parent;
-    struct list *child_list; 
+    struct list child_list; 
     struct parent_child *parent_child;
 
 #ifdef USERPROG

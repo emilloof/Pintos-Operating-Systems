@@ -96,6 +96,7 @@ write (int fd, const void *buffer, unsigned size)
 void 
 exit (int status)
 {
+  thread_current()->parent_child->exit_status = status;
   thread_exit();  
 }
 

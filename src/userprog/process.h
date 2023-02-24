@@ -20,7 +20,7 @@ struct parent_child{
   struct semaphore sema;
   struct lock lock;
   struct list_elem elem;
-  char* fn;
+  const char* fn;
 };
 
 
