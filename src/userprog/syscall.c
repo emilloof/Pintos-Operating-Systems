@@ -1,13 +1,5 @@
 #include "userprog/syscall.h"
-#include <stdio.h>
-#include <syscall-nr.h>
-#include "threads/interrupt.h"
-#include "threads/thread.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
-#include "devices/input.h"
-#include "threads/init.h"
-#include "userprog/process.h"
+
 
 /*
 export PATH="${HOME}/Desktop/pintos/src/utils/:${PATH}/"
@@ -111,6 +103,7 @@ write (int fd, const void *buffer, unsigned size)
 void 
 exit (int status)
 {
+  thread_current()->parent_child->exit_status = status;
   thread_exit();  
 }
 

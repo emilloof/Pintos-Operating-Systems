@@ -49,68 +49,92 @@ process_execute (const char *file_name)
 */
 
 tid_t
-process_execute (const char *file_name)
+process_execute (const char *file_name) 
 {
+  printf("first");
+
+  struct thread* parent_thread = thread_current();
+  //Dynamically allocate child struct.
+  struct parent_child *child = (struct parent_child*)malloc(sizeof(struct parent_child));
+
   char *fn_copy;
+
+  sema_init(&(child->sema), 0);
+  lock_init(&(child->lock));
   tid_t tid;
-  struct lock l;
-  struct thread *child = (struct thread*) malloc(sizeof(struct thread));
-  struct parent_child *parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
-  
-  
+
+
+  /* Make a copy of FILE_NAME.
+    Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-    if (fn_copy == NULL)
-      return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
 
-  sema_init(&parent_child->sema, 0);
-  sema_down(&parent_child->sema);
-  child->parent = thread_current();
-  parent_child->parent = thread_current();
-  parent_child->alive_count = 2;
-  parent_child->exit_status = 0;
+  //Initial value of tid is TID_ERROR (-1)
+  tid = TID_ERROR;
 
+  if (fn_copy != NULL) {
+    strlcpy (fn_copy, file_name, PGSIZE);
+    //Set child members
+    child->fn = fn_copy;
+    child->parent = parent_thread;
+    child->exit_status = 0;
+    child->alive_count = 2; // Initial value.
+    printf("sec");
+    list_push_back(&(parent_thread->child_list), &(child->elem));
 
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    /* Create a new thread to execute FILE_NAME. */
+    printf("före");
+    tid = thread_create (file_name, PRI_DEFAULT, start_process, child);
+    printf("efter");
+    //The thread(s) wait here until the new process has started.
+    sema_down(&(child->sema));
+  }
+  else {
+    //Set members so you we know it failed.
+    child->exit_status = -1; // Thread was never created so it won't be able to call thread_exit()!
+    child->alive_count = 1; // Initial value.
+  }
+
   return tid;
 }
-
-
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *aux)
 {
-  char *file_name = file_name_;
+  struct parent_child *child = aux;
+  char *file_name = child->fn;
+  /* Add thread and child relationship */
+  thread_current()->parent_child = child;
+  
   struct intr_frame if_;
   bool success;
-  struct thread *child = thread_current();
-  struct parent_child *parent_child = child->parent_child;
-  struct list child_list = child->parent->child_list;
-
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+  
+  /** Load the user program **/
   success = load (file_name, &if_.eip, &if_.esp);
 
+  //!! Free the fn_copy !!//
+  palloc_free_page(file_name);
+  
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success){ 
-    parent_child->exit_status = -1;
-    parent_child->alive_count -= 1;
+  
+  if (!success || thread_current()->tid == TID_ERROR) {
+    child->exit_status = -1;
+    /*
+    We do not touch the alive_count because we call thread_exit() on the process thread thus decrementing it by 1.
+    If we set it to 1 here, it will be freed which we do not want (we need to access the exit status).
+    */
+    sema_up(&(child->sema));
     thread_exit ();
   }
-    sema_up(&parent_child->sema);
-    list_push_front(&child_list, &child->elem);
 
-  
-  
+  sema_up(&(child->sema));
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -121,6 +145,7 @@ start_process (void *file_name_)
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
+
 
 /* Waits for thread TID to die and returns its exit status.  If
    it was terminated by the kernel (i.e. killed due to an
@@ -134,7 +159,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  while(true){}
+    return -1;
+
+  
 }
 
 /* Free the current process's resources. */
@@ -261,6 +289,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  /** Split arguments **/
+  char* token;
+  char* save_ptr;
+  char* args[32];
+  int argc = 0;
+  
+    for(token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+    args[argc] = token;
+    argc++;
+  }
+
+  //Used to store pointers.
+  char* pointers[argc];
+
+  //** End of splitting **//
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -271,6 +315,53 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp)){
     goto done;
   }
+
+
+  /* Add argument values to stack */
+  for(int i = argc-1; i >= 0; i--) {
+    char* arg = args[i];
+
+    if(arg != NULL) {
+      //Change stack pointer
+      *esp = *esp - (strlen(arg)+1);
+      pointers[i] = *esp;
+      memcpy(*esp, arg, (strlen(arg)+1)); //\0 is added automatically because the last slot is NULL.
+    }
+  }
+
+  /* Add word align to stack */
+  uintptr_t word_align = ((uintptr_t)(*esp) % 4);
+  *esp = *esp - word_align;
+  memset(*esp, 0, (int)word_align);
+  
+  /* Add NULL sentinel */
+  *esp = *esp - 4; // 4 is word size
+  memset(*esp, 0, 4);
+
+  /* Add the pointers to the stack*/
+  for(int i = argc-1; i >= 0; i--) {
+    char* arg = pointers[i];
+    if(arg != NULL) {
+      //Change stack pointer
+      *esp = *esp - 4;
+      memcpy(*esp, &arg, 4);
+    }
+  }
+
+  /* End of adding pointers */
+  
+  /* Add pointer to the args[0] stack pointer */
+  *esp = *esp - 4;
+  void* value = *esp+4;
+  memcpy(*esp, &value, 4);
+
+  /* Add argc to the stack */
+  *esp = *esp - 4;
+  memcpy(*esp, &argc, 4);
+
+  /* Add the return address */
+  *esp = *esp - 4;
+  memset(*esp, 0, 4);
 
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
