@@ -1,12 +1,5 @@
 #include "userprog/syscall.h"
 
-
-/*
-export PATH="${HOME}/Desktop/pintos/src/utils/:${PATH}/"
-pintos --qemu -- run lab1test2
-*/
-
-
 static void syscall_handler (struct intr_frame *);
 static int MAX_OPEN_FILES = 130;
 

@@ -10,8 +10,15 @@
         "stdbool.h": "c",
         "inttypes.h": "c",
         "debug.h": "c",
+<<<<<<< HEAD
         "list.h": "c"
 >>>>>>> 3cb75ddea5864c2e7c8f6770af85a6c40cc8c9ec
+=======
+        "list.h": "c",
+        "vaddr.h": "c",
+        "init.h": "c",
+        "thread.h": "c"
+>>>>>>> 19838cd2c44478d00de30ef759ff34e0401770d7
     },
     "C_Cpp.dimInactiveRegions": false,
     "C_Cpp.errorSquiggles": "disabled"
