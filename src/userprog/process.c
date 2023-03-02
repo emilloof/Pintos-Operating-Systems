@@ -54,18 +54,30 @@ process_execute (const char *file_name)
 tid_t
 process_execute (const char *file_name)
 {
+  printf("start filename: %s\n", file_name);
   char *fn_copy;
   tid_t tid;
   struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
   
   fn_copy = palloc_get_page (0);
+  char *fn_copy2 = palloc_get_page (0);
     if (fn_copy == NULL)
       return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  strlcpy(fn_copy2, file_name, PGSIZE);
+
+  //char* save_ptr;
+    
+  //strtok_r(fn_copy2, " ", &save_ptr);
+
+
+
 
   lock_init(&(parent_child->lock));
   lock_acquire(&(parent_child->lock));
   parent_child->parent = thread_current();
+  thread_current()->fn= fn_copy;
   parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
@@ -74,7 +86,7 @@ process_execute (const char *file_name)
 
 
   sema_init(&parent_child->sema, 0);
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, parent_child);
+  tid = thread_create (fn_copy2, PRI_DEFAULT, start_process, parent_child);
   sema_down(&parent_child->sema);
     
   if (tid == TID_ERROR){
@@ -154,15 +166,16 @@ process_wait (tid_t child_tid UNUSED)
   return -1;
 }
 
-/* Free the current process's resources. */
+/*  Free the current process's resources. */
 void
 process_exit (void)
 {
   struct thread *cur = thread_current();
   uint32_t *pd;
+  
   struct thread *parent = cur->parent;
   struct list parent_ch_list = parent->child_list;
-  struct parent_child *parent_child;
+  //struct parent_child *parent_child;
 
   if(!list_empty(&cur->child_list)){
     struct list_elem *elem;
@@ -189,6 +202,8 @@ process_exit (void)
         free(par_chi);
       }
     }
+
+    
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -223,7 +238,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -321,12 +336,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/*#define STACK_DEBUG*/
+#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
-  printf("*esp is %p\nstack contents:\n", *esp);
-  hex_dump((int)*esp , *esp, PHYS_BASE-*esp+16, true);
-  /* The same information, only more verbose: */
   /* It prints every byte as if it was a char and every 32-bit aligned
      data as if it was a pointer. */
   void * ptr_save = PHYS_BASE;
@@ -356,7 +368,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   }
 #endif
   /* Open executable file. */
+  //printf("file trying to be opened: %s\n",file_name);
   file = filesys_open (file_name);
+  printf("opened file: %s\n", file_name);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -584,13 +598,66 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
+      if (success){
+        *esp = PHYS_BASE;
+        
+        char *file_name = thread_current()->parent_child->fn;
+        char *token, *save_ptr;
+        char* args[32];
+        int arg_count = 0;
+        const int WORD_SIZE = 4;
+
+        //Delar upp argumenten
+        for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+            token = strtok_r (NULL, " ", &save_ptr)){
+            args[arg_count] = token;
+            arg_count++;
+            }
+        char* pointers[arg_count];
+        
+        //Spara alla pointers till argumenten och "ökar" stacken
+        for(int i = arg_count-1; i>=0; i--){
+          char* arg = args[i];
+          int argl = strlen(arg) + 1;
+          *esp = *esp - argl;
+          pointers[i] = memcpy(*esp, arg, argl);
+        }
+
+        //Allign the stackpointer
+        uintptr_t diff = (uintptr_t)(*esp) % WORD_SIZE;
+        *esp = *esp - diff;
+        memset(*esp, 0, (int)diff);
+  
+        *esp = *esp - WORD_SIZE;
+        memset(*esp, 0, WORD_SIZE);
+
+        //Adding pointers
+        for(int i = arg_count-1; i >= 0; i--) {
+          char* arg = pointers[i];
+          *esp = *esp - WORD_SIZE;
+          memcpy(*esp, &arg, WORD_SIZE);
+        }
+        //Pushing argv
+        *esp = *esp - WORD_SIZE;
+        void* argv = *esp+WORD_SIZE;
+        memcpy(*esp, &argv, WORD_SIZE);
+
+        //Pushing argc and return adress to stack
+        *esp = *esp - WORD_SIZE;
+        memcpy(*esp, &arg_count, WORD_SIZE);
+        *esp = *esp - WORD_SIZE;
+        memset(*esp, 0, WORD_SIZE);
+      }      
+
+    else{
         palloc_free_page (kpage);
     }
+  }
   return success;
 }
+
+
+
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
