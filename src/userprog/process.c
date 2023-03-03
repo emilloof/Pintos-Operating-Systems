@@ -27,7 +27,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
+   thread id, or TID_ERROR if the thread cannot be created.  */
 
 /*
 tid_t
@@ -54,7 +54,6 @@ process_execute (const char *file_name)
 tid_t
 process_execute (const char *file_name)
 {
-  printf("start filename: %s\n", file_name);
   char *fn_copy;
   tid_t tid;
   struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
@@ -81,6 +80,7 @@ process_execute (const char *file_name)
   parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
+  parent_child->has_waited = false;
   lock_release(&(parent_child->lock));
 
 
@@ -143,7 +143,7 @@ start_process (void *parent_child_)
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
-     and jump to it. */
+     and jump to it.  */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -160,11 +160,33 @@ start_process (void *parent_child_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  if(child_tid == TID_ERROR){
+  struct thread *cur = thread_current();
+  struct list child_list = thread_current()->child_list;
+  struct list_elem *elem;
+
+if(child_tid == TID_ERROR){
     return -1;
+   }
+
+/*
+  for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
+    struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);
+    if(child_tid == parent_child->current->tid && !parent_child->has_waited){
+     // lock_acquire(&parent_child->lock);
+      if(parent_child->exit_status == 0){
+       // lock_release(&parent_child->lock);
+       // sema_down(&parent_child->sema);
+        return parent_child->exit_status;
+      }
+      else{
+       // lock_release(&parent_child->lock);
+        return parent_child->exit_status;
+      }
+    }
   }
+*/
   return -1;
-}
+  }
 
 /*  Free the current process's resources. */
 void
@@ -176,6 +198,7 @@ process_exit (void)
   struct thread *parent = cur->parent;
   struct list parent_ch_list = parent->child_list;
   //struct parent_child *parent_child;
+
 
   if(!list_empty(&cur->child_list)){
     struct list_elem *elem;
@@ -198,6 +221,7 @@ process_exit (void)
     struct parent_child *par_chi = cur->parent_child;
 
     par_chi->alive_count --;
+    par_chi->exit_status = -1;
     if(par_chi->alive_count <= 0){
         free(par_chi);
       }
@@ -336,7 +360,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-#define STACK_DEBUG
+/*#define STACK_DEBUG*/
 
 #ifdef STACK_DEBUG
   /* It prints every byte as if it was a char and every 32-bit aligned
@@ -370,7 +394,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Open executable file. */
   //printf("file trying to be opened: %s\n",file_name);
   file = filesys_open (file_name);
-  printf("opened file: %s\n", file_name);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);

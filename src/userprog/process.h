@@ -3,6 +3,7 @@
 
 #include "threads/thread.h"
 #include "threads/synch.h"
+#include <stdbool.h>
 #include <stdlib.h>
 
 tid_t process_execute (const char *file_name);
@@ -20,6 +21,7 @@ struct parent_child{
   struct semaphore sema;
   struct lock lock;
   struct list_elem elem;
+  bool has_waited;
   const char* fn;
 };
 
