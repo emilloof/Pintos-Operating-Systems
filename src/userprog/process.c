@@ -207,7 +207,7 @@ if(child_tid == TID_ERROR){
     return -1;
    }
 
-/*
+
   for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
     struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);
     if(child_tid == parent_child->current->tid && !parent_child->has_waited){
@@ -223,7 +223,7 @@ if(child_tid == TID_ERROR){
       }
     }
   }
-*/
+
   return -1;
   }
 
