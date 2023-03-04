@@ -13,6 +13,7 @@ void process_activate (void);
 
 
 struct parent_child{
+  tid_t tid;
   char* name;  
   int exit_status;
   int alive_count;

@@ -10,7 +10,9 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "lib/string.h"
 #include <stdlib.h>
+
 
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H

@@ -126,13 +126,16 @@ process_execute (const char *file_name)
   sema_init(&parent_child->sema, 0);
   tid = thread_create (fn_copy2, PRI_DEFAULT, start_process, parent_child);
   sema_down(&parent_child->sema);
-    
+  parent_child->tid = tid;
+
   if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
   }
   
+
   else{
     list_push_back(&(thread_current()->child_list), &(parent_child->elem));
+
   }
     
   return tid;
@@ -197,33 +200,33 @@ start_process (void *parent_child_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
   struct thread *cur = thread_current();
   struct list child_list = thread_current()->child_list;
   struct list_elem *elem;
 
-if(child_tid == TID_ERROR){
+ if(child_tid == TID_ERROR){
     return -1;
-   }
-
-
+  }
+  
   for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
     struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);
-    if(child_tid == parent_child->current->tid && !parent_child->has_waited){
-     // lock_acquire(&parent_child->lock);
-      if(parent_child->exit_status == 0){
-       // lock_release(&parent_child->lock);
-       // sema_down(&parent_child->sema);
+    if(child_tid == parent_child->tid && !parent_child->has_waited){
+      parent_child->has_waited = true; 
+      lock_acquire(&parent_child->lock);
+      if(parent_child->alive_count > 1){
+        lock_release(&parent_child->lock);
+        sema_down(&parent_child->sema);
         return parent_child->exit_status;
       }
       else{
-       // lock_release(&parent_child->lock);
+        lock_release(&parent_child->lock);
         return parent_child->exit_status;
       }
     }
   }
-
+  
   return -1;
   }
 
@@ -238,13 +241,13 @@ process_exit (void)
   struct list parent_ch_list = parent->child_list;
   //struct parent_child *parent_child;
 
-
   if(!list_empty(&cur->child_list)){
     struct list_elem *elem;
 
       for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
       struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);	
       lock_acquire(&parent_child->lock);
+      sema_up(&parent_child->sema);
       parent_child->alive_count --;
       elem = list_remove (elem);
       if(parent_child->alive_count <= 0){
@@ -258,12 +261,18 @@ process_exit (void)
         
     if(parent != NULL){
     struct parent_child *par_chi = cur->parent_child;
-
+    lock_acquire(&par_chi->lock);
+    sema_up(&par_chi->sema);
+    
     par_chi->alive_count --;
     par_chi->exit_status = -1;
     if(par_chi->alive_count <= 0){
+        lock_release(&par_chi->lock);
         free(par_chi);
       }
+    else{
+      lock_release(&par_chi->lock);
+    }
     }
 
     
@@ -400,7 +409,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/*#define STACK_DEBUG*/
+/* #define STACK_DEBUG  */
 
 #ifdef STACK_DEBUG
   /* It prints every byte as if it was a char and every 32-bit aligned
@@ -523,7 +532,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
-
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
