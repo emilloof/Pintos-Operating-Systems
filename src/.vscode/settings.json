@@ -17,8 +17,13 @@
         "list.h": "c",
         "vaddr.h": "c",
         "init.h": "c",
+<<<<<<< HEAD
         "thread.h": "c"
 >>>>>>> 19838cd2c44478d00de30ef759ff34e0401770d7
+=======
+        "thread.h": "c",
+        "process.h": "c"
+>>>>>>> 77d6d1c22e12c9e9b8cf90353a82464d2761786f
     },
     "C_Cpp.dimInactiveRegions": false,
     "C_Cpp.errorSquiggles": "disabled"

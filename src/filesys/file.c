@@ -25,6 +25,7 @@ file_open (struct inode *inode)
       file->deny_write = false;
       return file;
     }
+
   else
     {
       inode_close (inode);

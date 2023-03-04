@@ -27,7 +27,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
+   thread id, or TID_ERROR if the thread cannot be created.  */
 
 /*
 tid_t
@@ -68,17 +68,28 @@ process_execute (const char *file_name)
   struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
   
   fn_copy = palloc_get_page (0);
+  char *fn_copy2 = palloc_get_page (0);
     if (fn_copy == NULL)
       return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  strlcpy(fn_copy2, file_name, PGSIZE);
+
+  //char* save_ptr;
+    
+  //strtok_r(fn_copy2, " ", &save_ptr);
+
+
+
 
   lock_init(&(parent_child->lock));
   lock_acquire(&(parent_child->lock));
   parent_child->parent = thread_current();
-  thread_current()->fn = fn_copy;
+  thread_current()->fn= fn_copy;
   parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
+  parent_child->has_waited = false;
   lock_release(&(parent_child->lock));
 
 
@@ -113,7 +124,7 @@ process_execute (const char *file_name)
   }
 
   sema_init(&parent_child->sema, 0);
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, parent_child);
+  tid = thread_create (fn_copy2, PRI_DEFAULT, start_process, parent_child);
   sema_down(&parent_child->sema);
     
   if (tid == TID_ERROR){
@@ -170,7 +181,7 @@ start_process (void *parent_child_)
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
-     and jump to it. */
+     and jump to it.  */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -188,21 +199,45 @@ start_process (void *parent_child_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
- if(child_tid == TID_ERROR){
-    return -1;
-  }
-  return -1;
-}
+  struct thread *cur = thread_current();
+  struct list child_list = thread_current()->child_list;
+  struct list_elem *elem;
 
-/* Free the current process's resources. */
+if(child_tid == TID_ERROR){
+    return -1;
+   }
+
+/*
+  for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
+    struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);
+    if(child_tid == parent_child->current->tid && !parent_child->has_waited){
+     // lock_acquire(&parent_child->lock);
+      if(parent_child->exit_status == 0){
+       // lock_release(&parent_child->lock);
+       // sema_down(&parent_child->sema);
+        return parent_child->exit_status;
+      }
+      else{
+       // lock_release(&parent_child->lock);
+        return parent_child->exit_status;
+      }
+    }
+  }
+*/
+  return -1;
+  }
+
+/*  Free the current process's resources. */
 void
 process_exit (void)
 {
   struct thread *cur = thread_current();
   uint32_t *pd;
+  
   struct thread *parent = cur->parent;
   struct list parent_ch_list = parent->child_list;
-  struct parent_child *parent_child;
+  //struct parent_child *parent_child;
+
 
   if(!list_empty(&cur->child_list)){
     struct list_elem *elem;
@@ -225,10 +260,13 @@ process_exit (void)
     struct parent_child *par_chi = cur->parent_child;
 
     par_chi->alive_count --;
+    par_chi->exit_status = -1;
     if(par_chi->alive_count <= 0){
         free(par_chi);
       }
     }
+
+    
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -263,7 +301,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -365,9 +403,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 /*#define STACK_DEBUG*/
 
 #ifdef STACK_DEBUG
-  printf("*esp is %p\nstack contents:\n", *esp);
-  hex_dump((int)*esp , *esp, PHYS_BASE-*esp+16, true);
-  /* The same information, only more verbose: */
   /* It prints every byte as if it was a char and every 32-bit aligned
      data as if it was a pointer. */
   void * ptr_save = PHYS_BASE;
@@ -397,6 +432,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   }
 #endif
   /* Open executable file. */
+  //printf("file trying to be opened: %s\n",file_name);
   file = filesys_open (file_name);
   if (file == NULL) 
     {
@@ -696,53 +732,63 @@ setup_stack (void **esp)
         *esp = PHYS_BASE;
         
         char *file_name = thread_current()->parent_child->fn;
-
-        char *s = palloc_get_page(0);
-        strlcpy(s, file_name, PGSIZE);
         char *token, *save_ptr;
         char* args[32];
-        int i = 0;
-        printf("filename är: %s\n", file_name);
-        printf("s är: %s\n", s);
+        int arg_count = 0;
+        const int WORD_SIZE = 4;
+
         //Delar upp argumenten
-        printf("innan");
-        for (token = strtok_r (s, " ", &save_ptr); token != NULL;
+        for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
             token = strtok_r (NULL, " ", &save_ptr)){
-            args[i] = token;
-            printf("new token: %s\n", token);
-            i++;
+            args[arg_count] = token;
+            arg_count++;
             }
-        char* pointers[i];
-        printf("efter uppdelar ");
+        char* pointers[arg_count];
         
         //Spara alla pointers till argumenten och "ökar" stacken
-        for(int j = i-1; j>=0; j--){
-          char* arg = args[j];
+        for(int i = arg_count-1; i>=0; i--){
+          char* arg = args[i];
           int argl = strlen(arg) + 1;
           *esp = *esp - argl;
-          pointers[j] = memcpy(*esp, arg, argl);
+          pointers[i] = memcpy(*esp, arg, argl);
         }
 
-        printf("efter spara p ");
+        //Allign the stackpointer
+        uintptr_t diff = (uintptr_t)(*esp) % WORD_SIZE;
+        *esp = *esp - diff;
+        memset(*esp, 0, (int)diff);
+  
+        *esp = *esp - WORD_SIZE;
+        memset(*esp, 0, WORD_SIZE);
 
-
-      uintptr_t word_align = ((uintptr_t)(*esp) % 4);
-      *esp = *esp - word_align;
-      memset(*esp, 0, (int)word_align);
-      
-
+        //Adding pointers
+        for(int i = arg_count-1; i >= 0; i--) {
+          char* arg = pointers[i];
+          *esp = *esp - WORD_SIZE;
+          memcpy(*esp, &arg, WORD_SIZE);
         }
-        
-      else{
+        //Pushing argv
+        *esp = *esp - WORD_SIZE;
+        void* argv = *esp+WORD_SIZE;
+        memcpy(*esp, &argv, WORD_SIZE);
+
+        //Pushing argc and return adress to stack
+        *esp = *esp - WORD_SIZE;
+        memcpy(*esp, &arg_count, WORD_SIZE);
+        *esp = *esp - WORD_SIZE;
+        memset(*esp, 0, WORD_SIZE);
+      }      
+
+    else{
         palloc_free_page (kpage);
     }
-    }  
-
-
-  //printf("slut");
+  }
   return success;
 
 }*/
+
+
+
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.

@@ -5,6 +5,42 @@ static int MAX_OPEN_FILES = 130;
 
 
 
+  bool
+  is_correct_address(void* ad){
+    if(ad == NULL){
+      return false;
+    }
+    if(is_kernel_vaddr(ad) && is_user_vaddr(ad) && pagedir_get_page(thread_current()->pagedir, ad)){
+      return true;
+    }
+    return false;
+  }
+
+  bool
+  is_correct_string(char *s){
+    int i=0;
+    while(true){
+      if(!is_correct_address(s)){
+        return false;
+      }
+      if(*(s+i) == '\0'){
+        return true;
+      }
+      i++;
+    }
+  }
+  bool
+  is_correct_buffer(void *buf , unsigned size){
+    if(is_correct_address(buf) && is_correct_address(buf+size)){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+
+
+
 void
 syscall_init (void)  
 {
@@ -93,10 +129,19 @@ write (int fd, const void *buffer, unsigned size)
   return -1;
 }
 
+
+int
+wait(tid_t id){
+  return process_wait(id);
+}
+
+
 void 
 exit (int status)
 {
+
   thread_current()->parent_child->exit_status = status;
+  printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();  
 }
 
@@ -109,10 +154,17 @@ exec (const char *cmd_line)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
- 
+
   void* sp = f->esp;
+  /*
+ if(!is_correct_address(sp)){
+    exit(-1);
+  }
+  */
   int id = *(int*)(sp);
   sp+=4;
+
+ 
 
   switch(id){
     case SYS_HALT:
@@ -122,20 +174,35 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_CREATE:
      {
+      
       const char *file = *(char**)sp;
       sp+=4;
       unsigned size = *(unsigned*)sp;
+/*
+      if(!is_correct_string(file) || !is_correct_address(sp)){
+        exit(-1);
+      }
+*/
       f->eax = create(file, size);
       break; 
      }
     case SYS_OPEN:
       {
+      
       const char *file = *(char**)sp;
+  /*    if(!is_correct_string(file)){
+        exit(-1);
+      }
+  */ 
       f->eax = open(file);
       break;
       }
     case SYS_CLOSE:
     {
+  /*    if(!is_correct_address(sp)){
+        exit(-1);
+      }
+  */
       int fd = *(int*)sp;
       close(fd);
       break;
@@ -143,35 +210,71 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_READ:
     {
       int fd = *(int*)sp;
+  /*  if(!is_correct_address(sp)){
+        exit(-1);
+      }
+  */
       sp += 4;
       void *buffer = *(void**)sp;
       sp +=4;
       unsigned size = *(unsigned*)sp;
+  /*  if(is_correct_buffer(buffer, size)){
+        exit(-1);
+      }
+  */
       f->eax = read(fd, buffer, size);
       break;
     }
     case SYS_WRITE:
     {
       int fd = *(int*)sp;
+  /*    if(!is_correct_address(sp)){
+        exit(-1);
+      }
+  */
       sp += 4;
       void *buffer = *(void**)sp;
       sp += 4;
       unsigned size = *(unsigned*)sp;
+   /*   if(is_correct_buffer(buffer, size)){
+        exit(-1);
+      }
+    */
       f->eax = write(fd, buffer, size);
       break;
     }
     case SYS_EXIT:
     {
       int fd = *((int*)(sp));
+    /*  if(!is_correct_address(sp)){
+        exit(-1);
+      }
+    */
       exit(fd);
       break;
     }
     case SYS_EXEC:
     {
       const char *cmd_line = *(char**)sp;
+    /*  if(!is_correct_string(cmd_line)){
+        exit(-1);
+      }
+    */
       f->eax = exec(cmd_line);
       break;
     }
+    case SYS_WAIT:
+    {
+    /*  int id = *((int*)(sp));
+      if(!is_correct_address(sp)){
+        exit(-1);
+      }
+    */
+      f->eax = wait(id);
+    }
   }
-}
+
+
+
+  }
 
