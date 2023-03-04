@@ -38,7 +38,6 @@ filesys_done (void)
 {
   free_map_close ();
 }
-
 /* Creates a file named NAME with the given INITIAL_SIZE.
    Returns true if successful, false otherwise.
    Fails if a file named NAME already exists,
@@ -90,7 +89,6 @@ filesys_remove (const char *name)
 
   return success;
 }
-
 /* Formats the file system. */
 static void
 do_format (void)

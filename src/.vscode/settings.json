@@ -11,7 +11,8 @@
         "vaddr.h": "c",
         "init.h": "c",
         "thread.h": "c",
-        "process.h": "c"
+        "process.h": "c",
+        "string.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
     "C_Cpp.errorSquiggles": "disabled"

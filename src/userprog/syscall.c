@@ -10,7 +10,7 @@ static int MAX_OPEN_FILES = 130;
     if(ad == NULL){
       return false;
     }
-    if(is_kernel_vaddr(ad) && is_user_vaddr(ad) && pagedir_get_page(thread_current()->pagedir, ad)){
+    if(is_user_vaddr(ad) && pagedir_get_page(thread_current()->pagedir, ad)){
       return true;
     }
     return false;
@@ -57,21 +57,26 @@ halt (void)
 bool
 create (const char *file, unsigned initial_size)
 {
-  return  filesys_create(file, initial_size);
+  if(!is_correct_string(file)){
+    exit(-1);
+  }
+  return filesys_create(file, initial_size);
 }
 
 int 
 open (const char *file)
 {
-  struct thread  *current_thread = thread_current();
+  struct thread *current_thread = thread_current();
   for(int i = 2; i < MAX_OPEN_FILES; i++){
     if(current_thread->file_list[i] == NULL){
-      struct file* opended = filesys_open(file);
-      if(opended != NULL){
-        current_thread->file_list[i] = opended;
-        return i;
+      struct file* opened = filesys_open(file);
+      if(opened == NULL){
+        return -1;
       }
-      return -1;      
+      else{
+        current_thread->file_list[i] = opened;
+        return i;
+      }      
     }
   }
   return -1;
@@ -139,9 +144,13 @@ wait(tid_t id){
 void 
 exit (int status)
 {
-
+  char* name;
+  //int size = sizeof(thread_current()->name);
+  //  strlcpy(name, thread_current()->name, size);
+  char* saveptr;
+  name= strtok_r(thread_current()->name, " ", &saveptr);
   thread_current()->parent_child->exit_status = status;
-  printf("%s: exit(%d)\n", thread_current()->name, status);
+  printf("%s: exit(%d)\n", name, status);
   thread_exit();  
 }
 
