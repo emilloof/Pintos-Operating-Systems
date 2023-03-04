@@ -63,12 +63,9 @@ process_execute (const char *file_name)
     if (fn_copy == NULL)
       return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  
   strlcpy(fn_copy2, file_name, PGSIZE);
 
-  //char* save_ptr;
-    
-  //strtok_r(fn_copy2, " ", &save_ptr);
+
 
 
 
@@ -87,19 +84,15 @@ process_execute (const char *file_name)
 
   sema_init(&parent_child->sema, 0);
   tid = thread_create (fn_copy2, PRI_DEFAULT, start_process, parent_child);
-  sema_down(&parent_child->sema);
-  parent_child->tid = tid;
-
   if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
+    return tid;
   }
-  
-
   else{
+    sema_down(&parent_child->sema);
+    parent_child->tid = tid;
     list_push_back(&(thread_current()->child_list), &(parent_child->elem));
-
   }
-    
   return tid;
 }
 
