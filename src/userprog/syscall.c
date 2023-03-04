@@ -4,7 +4,6 @@ static void syscall_handler (struct intr_frame *);
 static int MAX_OPEN_FILES = 130;
 
 
-
   bool
   is_correct_address(void* ad){
     if(ad == NULL){
@@ -66,6 +65,9 @@ create (const char *file, unsigned initial_size)
 int 
 open (const char *file)
 {
+  if(!is_correct_string(file)){
+    exit(-1);
+  }
   struct thread *current_thread = thread_current();
   for(int i = 2; i < MAX_OPEN_FILES; i++){
     if(current_thread->file_list[i] == NULL){
@@ -86,6 +88,7 @@ void
 close (int fd)
 {
   struct thread *current_thread = thread_current();
+  struct file *file = current_thread->file_list[fd];
   if(current_thread->file_list[fd] != NULL){
     file_close(current_thread->file_list[fd]);
     current_thread->file_list[fd] = NULL;
@@ -157,6 +160,9 @@ exit (int status)
 tid_t 
 exec (const char *cmd_line)
 {
+  if(!is_correct_string(cmd_line)){
+    exit(-1);
+  }
   return process_execute(cmd_line);
 }
 
@@ -208,10 +214,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
     case SYS_CLOSE:
     {
-  /*    if(!is_correct_address(sp)){
-        exit(-1);
-      }
-  */
+  
       int fd = *(int*)sp;
       close(fd);
       break;
