@@ -95,6 +95,7 @@ struct thread
     struct thread *parent;
     struct list child_list; 
     struct parent_child *parent_child;
+    const char* fn;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

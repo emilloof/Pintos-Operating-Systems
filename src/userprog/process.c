@@ -75,6 +75,7 @@ process_execute (const char *file_name)
   lock_init(&(parent_child->lock));
   lock_acquire(&(parent_child->lock));
   parent_child->parent = thread_current();
+  thread_current()->fn = fn_copy;
   parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
@@ -339,28 +340,12 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
-  struct thread *t = thread_current ();
+   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
   bool success = false;
   int i;
-
-  /** Split arguments **/
-  char* token;
-  char* save_ptr;
-  char* args[32];
-  int argc = 0;
-  
-    for(token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
-    args[argc] = token;
-    argc++;
-  }
-
-  //Used to store pointers.
-  char* pointers[argc];
-
-  //** End of splitting **//
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -373,52 +358,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   }
 
-
-  /* Add argument values to stack */
-  for(int i = argc-1; i >= 0; i--) {
-    char* arg = args[i];
-
-    if(arg != NULL) {
-      //Change stack pointer
-      *esp = *esp - (strlen(arg)+1);
-      pointers[i] = *esp;
-      memcpy(*esp, arg, (strlen(arg)+1)); //\0 is added automatically because the last slot is NULL.
-    }
-  }
-
-  /* Add word align to stack */
-  uintptr_t word_align = ((uintptr_t)(*esp) % 4);
-  *esp = *esp - word_align;
-  memset(*esp, 0, (int)word_align);
-  
-  /* Add NULL sentinel */
-  *esp = *esp - 4; // 4 is word size
-  memset(*esp, 0, 4);
-
-  /* Add the pointers to the stack*/
-  for(int i = argc-1; i >= 0; i--) {
-    char* arg = pointers[i];
-    if(arg != NULL) {
-      //Change stack pointer
-      *esp = *esp - 4;
-      memcpy(*esp, &arg, 4);
-    }
-  }
-
-  /* End of adding pointers */
-  
-  /* Add pointer to the args[0] stack pointer */
-  *esp = *esp - 4;
-  void* value = *esp+4;
-  memcpy(*esp, &value, 4);
-
-  /* Add argc to the stack */
-  *esp = *esp - 4;
-  memcpy(*esp, &argc, 4);
-
-  /* Add the return address */
-  *esp = *esp - 4;
-  memset(*esp, 0, 4);
 
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
@@ -679,6 +618,73 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t page_offset
 static bool
 setup_stack (void **esp) 
 {
+    uint8_t *kpage;
+  bool success = false;
+
+  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  if (kpage != NULL) {
+    success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
+    if (success) {
+      *esp = PHYS_BASE;
+
+      // Split arguments
+      char *token;
+      char *save_ptr;
+      char *args[32];
+      int argc = 0;
+      char *file_name = thread_current()->parent_child->fn;
+
+      for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+           token = strtok_r(NULL, " ", &save_ptr)) {
+        args[argc++] = token;
+      }
+
+      // Used to store pointers
+      char *pointers[argc];
+
+      // Add argument values and pointers to stack
+      for (int i = argc - 1; i >= 0; i--) {
+        // Change stack pointer
+        *esp -= strlen(args[i]) + 1;
+        memcpy(*esp, args[i], strlen(args[i]) + 1);
+        pointers[i] = *esp;
+      }
+
+      // Add word align to stack
+      uintptr_t word_align = ((uintptr_t)*esp) % 4;
+      *esp -= word_align;
+      memset(*esp, 0, word_align);
+
+      // Add NULL sentinel
+      *esp -= 4;
+      memset(*esp, 0, 4);
+
+      // Add pointers to the stack
+      for (int i = argc - 1; i >= 0; i--) {
+        // Change stack pointer
+        *esp -= 4;
+        memcpy(*esp, &pointers[i], 4);
+      }
+
+      // Add pointer to the args[0] stack pointer
+      *esp -= 4;
+      memcpy(*esp, esp + 4, 4);
+
+      // Add argc to the stack
+      *esp -= 4;
+      memcpy(*esp, &argc, 4);
+
+      // Add the return address
+      *esp -= 4;
+      memset(*esp, 0, 4);
+    } else {
+      palloc_free_page(kpage);
+    }
+  }
+
+  return success;
+}/*
+  //printf("först");
   uint8_t *kpage;
   bool success = false;
 
@@ -686,13 +692,57 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
+      if (success){
+        *esp = PHYS_BASE;
+        
+        char *file_name = thread_current()->parent_child->fn;
+
+        char *s = palloc_get_page(0);
+        strlcpy(s, file_name, PGSIZE);
+        char *token, *save_ptr;
+        char* args[32];
+        int i = 0;
+        printf("filename är: %s\n", file_name);
+        printf("s är: %s\n", s);
+        //Delar upp argumenten
+        printf("innan");
+        for (token = strtok_r (s, " ", &save_ptr); token != NULL;
+            token = strtok_r (NULL, " ", &save_ptr)){
+            args[i] = token;
+            printf("new token: %s\n", token);
+            i++;
+            }
+        char* pointers[i];
+        printf("efter uppdelar ");
+        
+        //Spara alla pointers till argumenten och "ökar" stacken
+        for(int j = i-1; j>=0; j--){
+          char* arg = args[j];
+          int argl = strlen(arg) + 1;
+          *esp = *esp - argl;
+          pointers[j] = memcpy(*esp, arg, argl);
+        }
+
+        printf("efter spara p ");
+
+
+      uintptr_t word_align = ((uintptr_t)(*esp) % 4);
+      *esp = *esp - word_align;
+      memset(*esp, 0, (int)word_align);
+      
+
+        }
+        
+      else{
         palloc_free_page (kpage);
     }
+    }  
+
+
+  //printf("slut");
   return success;
-}
+
+}*/
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
