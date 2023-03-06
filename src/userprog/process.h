@@ -14,7 +14,6 @@ void process_activate (void);
 
 struct parent_child{
   tid_t tid;
-  char* name;  
   int exit_status;
   int alive_count;
   struct thread *current;
@@ -24,7 +23,7 @@ struct parent_child{
   struct lock lock;
   struct list_elem elem;
   bool has_waited;
-  const char* fn;
+  char* fn;
 };
 
 

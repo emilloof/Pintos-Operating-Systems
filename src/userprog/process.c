@@ -29,45 +29,21 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created.  */
 
-/*
-tid_t
-process_execute (const char *file_name) 
-{
-  char *fn_copy;
-  tid_t tid;
-
-  // Make a copy of FILE_NAME.
-    //   Otherwise there's a race between the caller and load(). 
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
-    return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
-
-  // Create a new thread to execute FILE_NAME.
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  return tid;
-}
-*/
 
 tid_t
 process_execute (const char *file_name)
 {
-
   char *fn_copy;
   tid_t tid;
   struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
   
   fn_copy = palloc_get_page (0);
-  char *fn_copy2 = palloc_get_page (0);
-    if (fn_copy == NULL){
-      return TID_ERROR;
-    }
+  
   strlcpy (fn_copy, file_name, PGSIZE);
-  strlcpy(fn_copy2, file_name, PGSIZE);
 
-
+  if (fn_copy == NULL){
+    return TID_ERROR;
+    }
 
   lock_init(&(parent_child->lock));
   lock_acquire(&(parent_child->lock));
@@ -79,11 +55,7 @@ process_execute (const char *file_name)
   parent_child->has_waited = false;
   lock_release(&(parent_child->lock));
 
-
-
   sema_init(&parent_child->sema, 0);
-  sema_init(&parent_child->wait_sema, 0);
-
   tid = thread_create (fn_copy, PRI_DEFAULT, start_process, parent_child);
   if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
@@ -91,13 +63,15 @@ process_execute (const char *file_name)
   }
   else{
     sema_down(&parent_child->sema);
-    parent_child->tid = tid;
     list_push_back(&(thread_current()->child_list), &(parent_child->elem));
   }
+
+  if(parent_child->tid == TID_ERROR){
+    return parent_child->tid;
+  }
+
   return tid;
 }
-
-
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -111,7 +85,6 @@ start_process (void *parent_child_)
   bool success;
   struct thread *child = thread_current();
   child->parent = parent_child->parent;
-  struct list child_list = child->parent->child_list;
   child->parent_child = parent_child;
 
   /* Initialize interrupt frame and load executable. */
@@ -123,15 +96,15 @@ start_process (void *parent_child_)
   
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success){ 
-    parent_child->exit_status = -1;
-    parent_child->alive_count -= 1;
+  if (!success){
+    child->parent_child->tid = TID_ERROR; 
+    child->parent_child->exit_status = -1;
     sema_up(&parent_child->sema);
     thread_exit ();
   }
-    child->parent->child_list = child_list;
+    //child->parent->child_list = child_list;
     sema_up(&parent_child->sema);
-    
+    child->parent_child->tid = child->tid;
   
   
 
@@ -157,36 +130,7 @@ start_process (void *parent_child_)
 int
 process_wait (tid_t child_tid) 
 {
-  struct list* childList = &thread_current()->child_list;
-  struct list_elem *e;
-  int exit = -1;
-  for (e = list_begin (childList); e != list_end (childList); e = list_next (e))
-  {
-    struct parent_child *iterChild = list_entry (e, struct parent_child, elem);
-    if(child_tid == iterChild->tid)
-    {
-      lock_acquire(&(iterChild->lock));
-      if(iterChild->alive_count == 2)
-      {
-        lock_release(&(iterChild->lock));
-        sema_down(&(iterChild->wait_sema));
-        exit = iterChild->exit_status;
-      }
-      else
-      {
-        lock_release(&(iterChild->lock));
-        exit = iterChild->exit_status;
-      }
-      iterChild->exit_status = -1;
-      break;
-    }
-  }
-  return exit;
-}
-
-  /*
   struct thread *cur = thread_current();
-  struct list child_list = thread_current()->child_list;
   struct list_elem *elem;
 
  if(child_tid == TID_ERROR){
@@ -200,7 +144,7 @@ process_wait (tid_t child_tid)
       lock_acquire(&parent_child->lock);
       if(parent_child->alive_count > 1){
         lock_release(&parent_child->lock);
-        sema_down(&parent_child->wait_sema);
+        sema_down(&parent_child->sema);
         return parent_child->exit_status;
       }
       else{
@@ -211,7 +155,6 @@ process_wait (tid_t child_tid)
   }
   return -1;
   }
-*/
 
 /*  Free the current process's resources. */
 void
@@ -221,36 +164,33 @@ process_exit (void)
   uint32_t *pd;
   
   struct thread *parent = cur->parent;
-  struct list parent_ch_list = parent->child_list;
-  //struct parent_child *parent_child;
 
   if(!list_empty(&cur->child_list)){
     struct list_elem *elem;
 
       for (elem = list_begin (&cur->child_list); elem != list_end (&cur->child_list);){
       struct parent_child *parent_child = list_entry(elem, struct parent_child, elem);	
-      lock_acquire(&parent_child->lock);
-      sema_up(&parent_child->sema);
+      if(parent_child->alive_count == 2){
+        lock_acquire(&parent_child->lock);
+        sema_up(&parent_child->sema);
+      }
       parent_child->alive_count --;
       elem = list_remove (elem);
-      if(parent_child->alive_count <= 0){
+      if(parent_child->alive_count == 0){
         free(parent_child);
       }
       else{
-        lock_release(&parent_child->lock);
+          lock_release(&parent_child->lock);
       }
   }
 }
         
     if(parent != NULL){
-    //printf("%s: exit(%d)\n", cur->name, cur->parent_child->exit_status);
-
     struct parent_child *par_chi = cur->parent_child;
     lock_acquire(&par_chi->lock);
-    sema_up(&par_chi->wait_sema);
+    sema_up(&par_chi->sema);
     
     par_chi->alive_count --;
-    par_chi->exit_status = -1;
     if(par_chi->alive_count <= 0){
         lock_release(&par_chi->lock);
         free(par_chi);
@@ -390,11 +330,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   }
 
-
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/* #define STACK_DEBUG  */
+ //#define STACK_DEBUG  
 
 #ifdef STACK_DEBUG
   /* It prints every byte as if it was a char and every 32-bit aligned
@@ -426,11 +365,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   }
 #endif
   /* Open executable file. */
+  //printf("file trying to be opened: %s\n",file_name);
   file = filesys_open (file_name);
-  //printf("%s", file);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", file_name);      
       goto done; 
     }
 
@@ -734,4 +673,3 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
-

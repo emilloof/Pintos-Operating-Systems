@@ -150,8 +150,6 @@ void
 exit (int status)
 {
   char* name;
-  //int size = sizeof(thread_current()->name);
-  //  strlcpy(name, thread_current()->name, size);
   char* saveptr;
   name= strtok_r(thread_current()->name, " ", &saveptr);
   thread_current()->parent_child->exit_status = status;
