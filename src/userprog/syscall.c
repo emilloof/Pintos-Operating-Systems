@@ -1,5 +1,7 @@
 #include "userprog/syscall.h"
 
+
+
 static void syscall_handler (struct intr_frame *);
 static int MAX_OPEN_FILES = 130;
 
@@ -140,6 +142,7 @@ write (int fd, const void *buffer, unsigned size)
 }
 
 
+
 int
 wait(tid_t id){
   return process_wait(id);
@@ -164,6 +167,43 @@ exec (const char *cmd_line)
     exit(-1);
   }
   return process_execute(cmd_line);
+}
+
+void
+seek (int fd, unsigned position)
+{
+
+  struct thread *current_thread = thread_current();
+  struct file *file = current_thread->file_list[fd];
+  off_t pos = position;
+  if(file != NULL && pos>=0){
+    file_seek(file, pos);
+  }
+}
+
+
+
+unsigned
+tell (int fd)
+{
+  struct thread *current_thread = thread_current();
+  struct file *file = current_thread->file_list[fd];
+  return file_tell(file);
+}
+
+
+int
+filesize (int fd)
+{
+  struct thread *current_thread = thread_current();
+  struct file *file = current_thread->file_list[fd];
+  return file_length(file);
+}
+
+bool 
+remove (const char *file_name)
+{
+  return filesys_remove(file_name);
 }
 
 static void
@@ -286,6 +326,47 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = wait(id);
       break;
     }
+    case SYS_SEEK:
+    {
+      int fd = *((int*)(sp));
+      if(!is_correct_address(sp)){
+        exit(-1);
+      }
+      sp = sp + 4;
+      unsigned pos = *(unsigned*)sp;
+      if(!is_correct_address(sp)){
+        exit(-1);
+      }
+      seek(fd, pos);
+      break;
+    }
+    case SYS_TELL:
+    {
+      int fd = *((int*)(sp));
+      if(!is_correct_address(sp)){
+        exit(-1);
+      }
+      f->eax = tell(fd);
+      break;
+    }
+    case SYS_FILESIZE:
+    {
+      int fd = *((int*)(sp));
+      if(!is_correct_address(sp)){
+        exit(-1);
+      }
+      f->eax = filesize(fd);
+      break;      
+    }
+    case SYS_REMOVE:
+    {
+    const char *file = *(char**)sp;
+    if(!is_correct_string(file)){
+      exit(-1);
+    }
+    f->eax = remove(file);
   }
+  
   }
+}
 

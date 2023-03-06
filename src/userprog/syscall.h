@@ -12,6 +12,8 @@
 #include "userprog/pagedir.h"
 #include "lib/string.h"
 #include <stdlib.h>
+//#include "filesys/inode.h"
+//#include "filesys/file.h"
 
 
 #ifndef USERPROG_SYSCALL_H
@@ -28,6 +30,10 @@ int write (int fd, const void *buffer, unsigned size);
 int wait(tid_t id);
 void exit (int status);
 tid_t exec (const char *cmd_line);
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+int filesize (int fd);
+bool remove (const char *file_name);
 bool is_correct_address(void *ad);
 bool is_correct_string(char *s);
 bool is_correct_buffer(void *buf , unsigned size);
