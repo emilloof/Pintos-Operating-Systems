@@ -54,22 +54,18 @@ process_execute (const char *file_name)
 tid_t
 process_execute (const char *file_name)
 {
+
   char *fn_copy;
   tid_t tid;
   struct parent_child* parent_child = (struct parent_child*) malloc(sizeof(struct parent_child));
   
   fn_copy = palloc_get_page (0);
   char *fn_copy2 = palloc_get_page (0);
-    if (fn_copy == NULL)
+    if (fn_copy == NULL){
       return TID_ERROR;
+    }
   strlcpy (fn_copy, file_name, PGSIZE);
-  
   strlcpy(fn_copy2, file_name, PGSIZE);
-
-  //char* save_ptr;
-    
-  //strtok_r(fn_copy2, " ", &save_ptr);
-
 
 
 
@@ -86,20 +82,18 @@ process_execute (const char *file_name)
 
 
   sema_init(&parent_child->sema, 0);
-  tid = thread_create (fn_copy2, PRI_DEFAULT, start_process, parent_child);
-  sema_down(&parent_child->sema);
-  parent_child->tid = tid;
+  sema_init(&parent_child->wait_sema, 0);
 
+  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, parent_child);
   if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
+    return tid;
   }
-  
-
   else{
+    sema_down(&parent_child->sema);
+    parent_child->tid = tid;
     list_push_back(&(thread_current()->child_list), &(parent_child->elem));
-
   }
-    
   return tid;
 }
 
@@ -163,6 +157,34 @@ start_process (void *parent_child_)
 int
 process_wait (tid_t child_tid) 
 {
+  struct list* childList = &thread_current()->child_list;
+  struct list_elem *e;
+  int exit = -1;
+  for (e = list_begin (childList); e != list_end (childList); e = list_next (e))
+  {
+    struct parent_child *iterChild = list_entry (e, struct parent_child, elem);
+    if(child_tid == iterChild->tid)
+    {
+      lock_acquire(&(iterChild->lock));
+      if(iterChild->alive_count == 2)
+      {
+        lock_release(&(iterChild->lock));
+        sema_down(&(iterChild->wait_sema));
+        exit = iterChild->exit_status;
+      }
+      else
+      {
+        lock_release(&(iterChild->lock));
+        exit = iterChild->exit_status;
+      }
+      iterChild->exit_status = -1;
+      break;
+    }
+  }
+  return exit;
+}
+
+  /*
   struct thread *cur = thread_current();
   struct list child_list = thread_current()->child_list;
   struct list_elem *elem;
@@ -178,7 +200,7 @@ process_wait (tid_t child_tid)
       lock_acquire(&parent_child->lock);
       if(parent_child->alive_count > 1){
         lock_release(&parent_child->lock);
-        sema_down(&parent_child->sema);
+        sema_down(&parent_child->wait_sema);
         return parent_child->exit_status;
       }
       else{
@@ -189,6 +211,7 @@ process_wait (tid_t child_tid)
   }
   return -1;
   }
+*/
 
 /*  Free the current process's resources. */
 void
@@ -220,9 +243,11 @@ process_exit (void)
 }
         
     if(parent != NULL){
+    //printf("%s: exit(%d)\n", cur->name, cur->parent_child->exit_status);
+
     struct parent_child *par_chi = cur->parent_child;
     lock_acquire(&par_chi->lock);
-    sema_up(&par_chi->sema);
+    sema_up(&par_chi->wait_sema);
     
     par_chi->alive_count --;
     par_chi->exit_status = -1;
@@ -365,6 +390,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   }
 
+
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
@@ -400,8 +426,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   }
 #endif
   /* Open executable file. */
-  //printf("file trying to be opened: %s\n",file_name);
   file = filesys_open (file_name);
+  //printf("%s", file);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);

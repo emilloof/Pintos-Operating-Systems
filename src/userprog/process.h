@@ -20,6 +20,7 @@ struct parent_child{
   struct thread *current;
   struct thread *parent;
   struct semaphore sema;
+  struct semaphore wait_sema;
   struct lock lock;
   struct list_elem elem;
   bool has_waited;

@@ -168,6 +168,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+ // struct parent_child parent_child = aux;
 
   ASSERT (function != NULL);
 
@@ -193,6 +194,8 @@ thread_create (const char *name, int priority,
   /* Stack frame for switch_threads(). */
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
+
+  //parent_child->tid = tid;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -279,7 +282,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
-  struct thread *cur_thread = thread_current();
+ /* struct thread *cur_thread = thread_current();
   int MAX_OPEN_FILES = 128;
   for(int i = 2; i > MAX_OPEN_FILES; i++){
     if(cur_thread->file_list[i] != NULL){
@@ -287,7 +290,7 @@ thread_exit (void)
       cur_thread->file_list[i] = NULL;
     }
   }
-
+*/
   process_exit ();
   
 #endif

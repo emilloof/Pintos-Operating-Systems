@@ -97,6 +97,7 @@ struct thread
     struct parent_child *parent_child;
     const char* fn;
 
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
