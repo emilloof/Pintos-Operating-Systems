@@ -48,7 +48,6 @@ process_execute (const char *file_name)
   lock_init(&(parent_child->lock));
   lock_acquire(&(parent_child->lock));
   parent_child->parent = thread_current();
-  thread_current()->fn= fn_copy;
   parent_child->fn = fn_copy;
   parent_child->alive_count = 2;
   parent_child->exit_status = 0;
@@ -126,7 +125,7 @@ start_process (void *parent_child_)
    immediately, without waiting.
 
    This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+   does nothing.  */
 int
 process_wait (tid_t child_tid) 
 {
